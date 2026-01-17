@@ -9,6 +9,8 @@ from aiogram.types import BotCommand
 import re
 import os
 
+from models import summarize
+
 load_dotenv()
 
 BOT_TOKEN = os.getenv("TG_BOT_TOKEN")
@@ -134,7 +136,10 @@ async def handle_summ_command(message: types.Message):
             await message.reply(f"Сообщений за эту дату нет., {date_obj, next_day}")
             return
 
-        reply_text = "\n".join(f"{m.created_at.strftime('%d.%m.%Y %H:%M')}: {m.text}" for m in messages[-10:])
+        # reply_text = "\n".join(f"{m.created_at.strftime('%d.%m.%Y %H:%M')}: {m.text}" for m in messages[-10:])
+        reply_text = summarize([m.text for m in messages])
+        if reply_text is None:
+            reply_text = "Извините, возникли неполадки. Попробуйте ещё раз!"
         await message.reply(reply_text)
 
 
