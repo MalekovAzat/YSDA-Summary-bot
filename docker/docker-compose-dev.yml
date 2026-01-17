@@ -1,0 +1,35 @@
+version: "3"
+
+services:
+  summary-bot:
+    container_name: summary-bot
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile
+    entrypoint: watchmedo auto-restart --patterns="*.py" --recursive -- python src/bot_polling.py
+    volumes:
+      - ../:/app
+    networks:
+      - summary-net
+
+  postgres:
+    image: postgres:15
+    container_name: aib-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: aib_db
+      POSTGRES_USER: aib_user
+      POSTGRES_PASSWORD: aib_password
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - summary-net
+
+networks:
+  summary-net:
+    driver: bridge
+
+volumes:
+  pg_data:
