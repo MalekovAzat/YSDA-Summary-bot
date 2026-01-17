@@ -8,7 +8,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from src.user_service.user_service import UserService
 from src.user_chat_service.user_chat_service import UserChatService
 
-from typing import List
+from src.tools import tools
 
 
 @dp.message(Command(commands=['start']), F.chat.type == "private")
@@ -17,7 +17,7 @@ async def start_command_handler(message: types.Message):
 
     user_service = UserService()
 
-    await user_service.create_user(telegram_chat_id, first_name, last_name, username, language_code)
+    await user_service.get_or_create(telegram_chat_id, first_name, last_name, username, language_code)
 
     await message.answer('<B>Привет я бот который поможет тебе быть всегда в контексте и не терять важные апдейты!</b>\n\nПерешли мне сообщение из чата', parse_mode='HTML')
 
@@ -60,19 +60,6 @@ async def handle_message(message: types.Message, bot: Bot):
             text='Чат добавлен в список чатов, теперь можем получать суммаризацию /summ'
         )
 
-def build_inline_keyboard(buttons: List[InlineKeyboardButton], row_width: int = 2) -> InlineKeyboardMarkup:
-    rows = []
-    row = []
-    for button in buttons:
-        row.append(button)
-        if len(row) == row_width:
-            rows.append(row)
-            row = []
-    if row:  # добавляем оставшиеся кнопки
-        rows.append(row)
-
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
 @dp.message(Command(commands=['summ']), F.chat.type == 'private')
 async def handle_summ_command(message: types.Message, bot: Bot):
     user_service = UserService()
@@ -86,10 +73,11 @@ async def handle_summ_command(message: types.Message, bot: Bot):
 
     if len(chats) == 0:
         await message.reply('У вас нет чатов по которым можно провести summary')
+        return
 
     buttons = [InlineKeyboardButton(text=f'{chat_record.title}',callback_data=f'select_chat:${chat_record.chat_id}') for chat_record in chats]
 
-    kb = build_inline_keyboard(buttons, 2)
+    kb = tools.build_inline_keyboard(buttons, 2)
 
     await bot.send_message(
         chat_id= user.telegram_id,
@@ -122,7 +110,7 @@ async def show_chat_list(query: types.CallbackQuery, bot: Bot):
         for chat_record in chats
     ]
 
-    kb = build_inline_keyboard(buttons, row_width=2)
+    kb = tools.build_inline_keyboard(buttons, 2)
 
     await bot.edit_message_text(
         chat_id=query.message.chat.id,
@@ -167,7 +155,7 @@ async def handle_chat_selected(query: types.CallbackQuery, bot: Bot):
         )
     ]
 
-    kb = build_inline_keyboard(buttons, 1)
+    kb = tools.build_inline_keyboard(buttons, 2)
 
     await bot.edit_message_text(
         text=f"Выбран чат <b>{chat.title}</b>\n\n Выберите доступные опции:", 

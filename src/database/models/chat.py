@@ -11,6 +11,3 @@ class Chat(Base):
     joined_at = Column(DateTime, default=datetime.utcnow)
     is_admin = Column(Boolean, default=False)
     type = Column(String, nullable=False)
-
-    # связь с сообщениями
-    messages = relationship("Message", back_populates="chat", cascade="all, delete-orphan")

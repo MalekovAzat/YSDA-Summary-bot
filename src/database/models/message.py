@@ -7,14 +7,10 @@ class Message(Base):
     __tablename__ = "messages"
 
     id = Column(BigInteger, primary_key=True, autoincrement=False)
-    chat_id = Column(BigInteger, ForeignKey("chats.id"), nullable=False)
+    chat_id = Column(BigInteger, ForeignKey("chats.id"), primary_key=True)
+
     from_id = Column(BigInteger, nullable=False)
     text = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    reply_to = Column(BigInteger, ForeignKey("messages.id"), nullable=True)
-    link_in_chat= Column(String, nullable=False)
+    link_in_chat = Column(String, nullable=False)
     from_name = Column(String)
-
-    # связи
-    chat = relationship("Chat", back_populates="messages")
-    reply = relationship("Message", remote_side=[id], uselist=False)
