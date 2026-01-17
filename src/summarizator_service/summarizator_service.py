@@ -1,5 +1,5 @@
 import os
-from openai import OpenAI
+from openai import AsyncOpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,7 +11,7 @@ NEURONET_PROVIDER_TOKEN = os.getenv("NEURONET_PROVIDER_TOKEN")
 NEURONET_MODEL_NAME=os.getenv("NEURONET_MODEL_NAME")
 NEURONET_PROVIDER_BASE_URL=os.getenv("NEURONET_PROVIDER_BASE_URL")
 
-client = OpenAI(
+client = AsyncOpenAI(
     base_url=NEURONET_PROVIDER_BASE_URL,
     api_key=NEURONET_PROVIDER_TOKEN,
 )
@@ -95,7 +95,7 @@ class SummarizationService:
         prompt = options['summarization']
         prompt += "\n".join(messages)
 
-        completion = await client.chat.completions.acreate(
+        completion = await client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -107,7 +107,7 @@ class SummarizationService:
 
         user_prompt = '\n'.join(messages)
 
-        completion = await client.chat.completions.acreate(
+        completion = await client.chat.completions.create(
             model=self.model,
             messages=[
                 {
@@ -116,7 +116,7 @@ class SummarizationService:
                 },
                 {
                     'role': 'user',
-                    'conent': user_prompt
+                    'content': user_prompt
                 }
             ],
         )

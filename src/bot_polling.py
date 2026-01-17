@@ -26,7 +26,7 @@ async def set_bot_commands(bot: Bot):
     commands = [
         BotCommand(command="start", description="Получить список команд"),
         BotCommand(command="chat_id", description="Получить идентификатор чата"),
-        BotCommand(command="summ", description="За день /summ 2025-15-10"),
+        BotCommand(command="summ", description="За день /summ 25-15-10"),
     ]
     await bot.set_my_commands(commands)
 

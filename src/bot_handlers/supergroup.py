@@ -137,15 +137,17 @@ async def handle_summ_command(message: types.Message, bot: Bot):
 
         messages = await chat_service.get_messages_for_day(chat_id=chat_id, bot_id=bot.id, date_from=date_obj, date_to=next_day)
 
-        if not messages:
+        if len(messages) == 0:
             await message.reply(f"Сообщений за эту дату нет., {date_obj, next_day}")
             return
+        messages = [f"{msg.created_at.strftime('%d.%m.%Y %H:%M')} {msg.from_name} {msg.link_in_chat}: {msg.text}" for msg in messages]
 
     summarizator = SummarizationService()
+    
     try:
-        result = await summarizator.summarize(messages)
+        result = await summarizator.summarize_v2(messages)
         reply = escape(result)
-    except:
+    except Exception as e:
         result = 'Пу пу пуу...\n\nК сожалению суммаризация завершилась с ошибкой, нам очень жаль мы старались 😕'
 
     await bot.send_message(chat_id=message.chat.id, text=reply, parse_mode='MarkdownV2')
