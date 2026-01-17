@@ -11,7 +11,7 @@ from aiogram.types import BotCommand
 from src.command_dispatcher import dp
 import bot_handlers.private_chat
 import bot_handlers.supergroup
-from md2tgmd import escape
+# from md2tgmd import escape
 
 load_dotenv()
 

@@ -96,3 +96,11 @@ class ChatService:
 
         self.db.add(chat_message)
         await self.db.commit()
+    
+    async def save_history(
+            self,
+            messages: list[Message]
+    ) -> None:
+        for message in messages:
+            self.db.add(message)
+        await self.db.commit()

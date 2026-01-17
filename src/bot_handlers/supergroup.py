@@ -3,12 +3,15 @@ from aiogram.filters import Command
 from aiogram import Bot, Dispatcher, types, F
 from src.command_dispatcher import dp
 from aiogram.types import ChatMemberUpdated
-from sqlalchemy.future import select
 from database.database import AsyncSessionLocal
 from aiogram.types import InlineKeyboardButton
+from aiogram.enums import ContentType
 import re
+import io
+import json
 
 from src.tools import tools
+from src.bot_utils import is_admin, convert_messages, check_if_tagged
 from src.chat_service.chat_service import ChatService
 from src.summarizator_service.summarizator_service import SummarizationService
 from md2tgmd import escape
@@ -69,52 +72,6 @@ async def on_bot_added_to_chat(update: ChatMemberUpdated, bot: Bot):
             "Я больше не администратор — часть функций может не работать ⚠️"
         )
 
-@dp.message(F.chat.type == "supergroup", ~F.text.startswith("/"))
-async def handle_any_message(message: types.Message):
-    if message.new_chat_members or message.left_chat_member:
-        return
-
-    message_text = message.text or message.caption or ""
-    if not message_text.strip():
-        return
-
-    message_text = message.text or message.caption or ""
-    chat_id = message.chat.id
-    message_id = message.message_id
-    from_id = message.from_user.id
-
-    internal_id = str(chat_id)[4:]
-    message_link = f'https://t.me/c/{internal_id}/{message_id}'
-
-    from_name = f'{message.from_user.first_name} {message.from_user.last_name}'
-
-    async with AsyncSessionLocal() as db:
-        chat_service = ChatService(db)
-        await chat_service.save_message(
-            message_id=message_id,
-            chat_id=chat_id,
-            from_id=from_id,
-            text=message_text,
-            link_in_chat=message_link,
-            from_name=from_name
-        )
-
-        await db.commit()
-
-@dp.message(Command(commands=["summary"]), F.chat.type == "supergroup")
-async def handle_summ_command(message: types.Message, bot: Bot):
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    
-    buttons = [InlineKeyboardButton(text=f'{123}',callback_data=f'sc:u:{user_id}')]
-
-    kb = tools.build_inline_keyboard(buttons=buttons, row_width=1)
-
-    await bot.send_message(
-        chat_id=chat_id,
-        text='Давай подготовим для тебя новое summary по этому чату!\n\n',
-        reply_markup = kb
-    )
 
 @dp.message(Command(commands=["summ"]), F.chat.type == "supergroup")
 async def handle_summ_command(message: types.Message, bot: Bot):
@@ -156,3 +113,74 @@ async def handle_summ_command(message: types.Message, bot: Bot):
 @dp.message(Command(commands=['chat_id']), F.chat.type == "supergroup")
 async def handle_chat_id_command(message: types.Message):
     await message.reply(str(message.chat.id))
+
+
+@dp.message(F.chat.type == "supergroup", F.content_type == ContentType.DOCUMENT)
+async def handle_save_history(message: types.Message, bot: Bot):
+    bot_name = await bot.get_my_name()
+    if not check_if_tagged(message, bot_name.name): # Ignore, if not mentioned
+        pass
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+
+    if not await is_admin(bot, chat_id, user_id):
+        await message.reply("Вы не обладаете правами администратора!")
+        return
+
+    document = message.document
+    status = await message.reply("Посмотрим, что там...")
+    
+    try:
+        file_io = io.BytesIO()
+        await message.bot.download(file=document.file_id, destination=file_io)
+        file_io.seek(0)
+        byte_data = file_io.read()
+        json_data = json.loads(byte_data)
+        messages = convert_messages(json_data)
+
+        await status.edit_text(f"Нашёл {len(messages)} сообщений. Запоминаю...")
+
+        async with AsyncSessionLocal() as db:
+            chat_service = ChatService(db)
+            await chat_service.save_history(messages)
+            await db.commit()
+    except:
+        await status.edit_text("Что-то пошло не так, сорян(")
+        raise
+        return
+
+    await status.edit_text("Загрузка завершена! Теперь я всё знаю о вас...")
+
+
+# After all handlers because it should be the lowest priority handler
+@dp.message(F.chat.type == "supergroup", ~F.text.startswith("/"), F.content_type != ContentType.DOCUMENT)
+async def handle_any_message(message: types.Message):
+    if message.new_chat_members or message.left_chat_member:
+        return
+
+    message_text = message.text or message.caption or ""
+    if not message_text.strip():
+        return
+
+    message_text = message.text or message.caption or ""
+    chat_id = message.chat.id
+    message_id = message.message_id
+    from_id = message.from_user.id
+
+    internal_id = str(chat_id)[4:]
+    message_link = f'https://t.me/c/{internal_id}/{message_id}'
+
+    from_name = f'{message.from_user.first_name} {message.from_user.last_name}'
+
+    async with AsyncSessionLocal() as db:
+        chat_service = ChatService(db)
+        await chat_service.save_message(
+            message_id=message_id,
+            chat_id=chat_id,
+            from_id=from_id,
+            text=message_text,
+            link_in_chat=message_link,
+            from_name=from_name
+        )
+
+        await db.commit()
