@@ -4,6 +4,7 @@ from aiogram.filters import Command
 from aiogram import Bot, types, F
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
+from aiogram.filters import StateFilter
 
 import re
 from database.database import AsyncSessionLocal
@@ -16,7 +17,7 @@ from src.tools import tools
 from src.bot_utils import summarize_messages
 
 
-@dp.message(Command(commands=['start', 'help']), F.chat.type == "private")
+@dp.message(Command(commands=['start']), F.chat.type == "private")
 async def start_command_handler(message: types.Message):
     [telegram_chat_id, first_name, last_name, username, language_code ] = [message.chat.id, message.from_user.first_name, message.from_user.last_name, message.from_user.username, message.from_user.language_code]
 
@@ -24,7 +25,15 @@ async def start_command_handler(message: types.Message):
 
     await user_service.get_or_create(telegram_chat_id, first_name, last_name, username, language_code)
 
-    await message.answer('<b>Привет!\nЯ собираю важные сообщения из чатов курсов и делаю по ним краткие сводки.</b>\nЧтобы начать, отправь ID чата курса (начинается с <code>-100</code>)\nПосле этого используй /summ для получения сводки.', parse_mode='HTML')
+    await message.answer('Привет! 👋\n\nЯ помогаю собирать <b>важные сообщения из чатов курсов</b> и создавать по ним <b>краткие и удобные сводки</b>. \nБольше не нужно пролистывать длинные переписки — я выделяю главные темы, обсуждения и итоговые выводы. 📝⚡\n\nЧтобы начать получать сводки по нужным чатам, нужно <b>привязать эти чаты к боту</b>.  \nДля этого просто вызови команду:  \n\n📌 /summ  \nПосле этого бот покажет список доступных чатов и предложит выбрать, за какой период собрать сводку.  \n\nЕсли нужна подробная инструкция по привязке чата или использованию команд — она всегда доступна в:  \n\n📖 /help\nНачни прямо сейчас и получай полезные краткие резюме из всех своих чатов! 🚀', parse_mode='HTML')
+
+@dp.message(Command(commands=['help']), F.chat.type == "private")
+async def help_command_handler(message: types.Message, bot: Bot):
+    await bot.send_message(
+        chat_id=message.chat.id,
+        text='<b>Как привязать чат:</b>\n1. Добавь бота в чат\n2. Сделай бота администратором\n3. Вызови /chat_id в группе, в ответ бот пришлет сообщение для привязки\n4. Перешли сообщение от бота в лс боту\n5. Готово, чат привязан!💋💋💋', parse_mode='HTML'
+    )
+
 
 def is_group_forward_message(text: str):
     """
@@ -60,18 +69,9 @@ async def handle_message(message: types.Message, bot: Bot):
 
         chat_info = await bot.get_chat(chat_id)
 
-        async with AsyncSessionLocal() as db:
-            from src.database.models.user_chats import UserChats
-            user_chats_obj = UserChats(
-                user_id=user.id,
-                chat_id=chat_id,
-                role=result.status,
-                title=chat_info.title
-            )
+        user_chat_service = UserChatService()
 
-            db.add(user_chats_obj)
-            await db.commit()
-
+        chat = await user_chat_service.get_or_create(user.id, chat_id, result.status, chat_info.title)
         # в личных сообщениях идентификатор чата и пользователя совпадают
         await bot.send_message(
             chat_id=user_id,
@@ -105,7 +105,7 @@ async def handle_summ_command(message: types.Message, bot: Bot):
 
     await bot.send_message(
         chat_id= user.telegram_id,
-        text='Выбери чат для сводки:',
+        text='Выбери чат по которому хочешь получить сводку:',
         reply_markup=kb
     )
 
@@ -174,10 +174,10 @@ async def handle_chat_selected(query: types.CallbackQuery, bot: Bot):
             text= 'За неделю',
             callback_data=f'time:days7;select_chat:${selected_chat_id}',
         ),
-        InlineKeyboardButton(
-            text= 'Укажите свою начальную дату',
-            callback_data=f'custom_time;select_chat:${selected_chat_id}',
-        ),
+        # InlineKeyboardButton(
+        #     text= 'C конкретной даты',
+        #     callback_data=f'custom_time;select_chat:${selected_chat_id}',
+        # ),
         InlineKeyboardButton(
             text= '⬅️ Назад',
             callback_data='chat_list',
@@ -187,7 +187,7 @@ async def handle_chat_selected(query: types.CallbackQuery, bot: Bot):
     kb = tools.build_inline_keyboard(buttons, 2)
 
     await bot.edit_message_text(
-         text=f"Выбран чат <b>{chat.title}</b>\n\nВыбери доступные опции:",
+        text=f'Выбран чат <b>"{chat.title}"</b>\n\nТеперь выбери, за какой период собрать суммаризацию сообщений:',
         chat_id=query.message.chat.id,
         message_id=query.message.message_id,
         reply_markup=kb,
@@ -236,24 +236,22 @@ class Form(StatesGroup):
 async def handle_time_selected(query: types.CallbackQuery, state: FSMContext):
     await state.set_state(Form.start_time)
     await query.message.answer("Введите свою начальную дату в формате ДД.ММ.ГГ:")
-    query.message.delete()
+    await query.message.delete()
 
     _, chat_info = query.data.split(';')
 
     selected_chat_id = int(chat_info.replace('select_chat:$', ''))
     await state.update_data(selected_chat_id=selected_chat_id)
-    await state.set_state(Form.start_time)
 
 
-
-@dp.message(Form.start_time)
+@dp.message(StateFilter(Form.start_time))
 async def handle_custom_time(message: types.Message, state: FSMContext):
     await message.reply("Обрабатываю...")
     date_str = message.text
     try:
         date = datetime.strptime(date_str, "%d.%m.%y")
     except:
-        message.reply("Не смог прочитать дату, попробуйте ещё раз!")
+        await message.reply("Не смог прочитать дату, попробуйте ещё раз!")
         await state.clear()
         return
     
@@ -274,5 +272,3 @@ async def handle_custom_time(message: types.Message, state: FSMContext):
         message_id=tmp_message.message_id,
         text=reply_text, parse_mode='MarkdownV2'
     )
-    
-

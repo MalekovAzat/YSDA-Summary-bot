@@ -39,7 +39,8 @@ async def set_bot_commands(bot: Bot):
 
     personal_commands = [
         BotCommand(command="start", description="Познакомиться с работой бота 🎯"),
-        BotCommand(command="summ", description="Получить суммаризацию в лс 🧠"),
+        BotCommand(command="help", description="Посмотреть инструкцию привязки чатов 🆘"),
+        BotCommand(command="summ", description="Получить суммаризацию 🧠"),
     ]
 
     await bot.set_my_commands(commands=personal_commands, scope=BotCommandScopeAllPrivateChats())

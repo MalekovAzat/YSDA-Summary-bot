@@ -84,16 +84,14 @@ async def on_bot_added_to_chat(update: ChatMemberUpdated, bot: Bot):
 
 @dp.message(Command(commands=["summ"]), F.chat.type == "supergroup")
 async def handle_summ_command(message: types.Message, bot: Bot):
-    chat_id = message.chat.id
-
     date_str = message.text.split(' ')[-1]
     date_regex = r"\b\d{2}-\d{2}-\d{2}\b"
     if not re.fullmatch(date_regex, date_str):
-        await message.reply(f'Формат даты должен быть YY-MM-DD')
+        await message.reply(f'Формат даты должен быть DD.MM.YY')
         return
 
     from datetime import datetime, timedelta
-    date_obj = datetime.strptime(date_str, "%y-%m-%d")
+    date_obj = datetime.strptime(date_str, "%d.%m.%y")
     next_day = date_obj + timedelta(days=1)
 
     reply = await summarize_messages(message.chat.id, bot.id, date_from=date_obj, date_to=next_day)

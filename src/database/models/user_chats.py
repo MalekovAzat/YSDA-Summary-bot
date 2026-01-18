@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, BigInteger, String, Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from src.database.database import Base
@@ -12,3 +12,7 @@ class UserChats(Base):
     role = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     title = Column(String)
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'chat_id', name='uq_user_chats_user_chat'),
+    )
