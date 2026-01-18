@@ -11,10 +11,12 @@ import io
 import json
 
 from src.tools import tools
-from src.bot_utils import is_admin, convert_messages, check_if_tagged
+from src.bot_utils import is_admin, convert_messages, check_if_tagged, summarize_messages
 from src.chat_service.chat_service import ChatService
 from src.summarizator_service.summarizator_service import SummarizationService
 from md2tgmd import escape
+
+
 
 
 @dp.message(Command(commands=['start']), F.chat.type == "supergroup")
@@ -87,25 +89,7 @@ async def handle_summ_command(message: types.Message, bot: Bot):
     date_obj = datetime.strptime(date_str, "%y-%m-%d")
     next_day = date_obj + timedelta(days=1)
 
-    reply: str = None
-
-    async with AsyncSessionLocal() as db:
-        chat_service = ChatService(db)
-
-        messages = await chat_service.get_messages_for_day(chat_id=chat_id, bot_id=bot.id, date_from=date_obj, date_to=next_day)
-
-        if len(messages) == 0:
-            await message.reply(f"Сообщений за эту дату нет., {date_obj, next_day}")
-            return
-        messages = [f"{msg.created_at.strftime('%d.%m.%Y %H:%M')} {msg.from_name} {msg.link_in_chat}: {msg.text}" for msg in messages]
-
-    summarizator = SummarizationService()
-    
-    try:
-        result = await summarizator.summarize_v2(messages)
-        reply = escape(result)
-    except Exception as e:
-        result = 'Пу пу пуу...\n\nК сожалению суммаризация завершилась с ошибкой, нам очень жаль мы старались 😕'
+    reply = await summarize_messages(message.chat.id, bot.id, date_from=date_obj, date_to=next_day)
 
     await bot.send_message(chat_id=message.chat.id, text=reply, parse_mode='MarkdownV2')
 
@@ -115,7 +99,7 @@ async def handle_chat_id_command(message: types.Message):
     await message.reply(str(message.chat.id))
 
 
-@dp.message(F.chat.type == "supergroup", F.content_type == ContentType.DOCUMENT)
+@dp.message(Command(commands=['import']), F.chat.type == "supergroup")
 async def handle_save_history(message: types.Message, bot: Bot):
     bot_name = await bot.get_my_name()
     if not check_if_tagged(message, bot_name.name): # Ignore, if not mentioned
@@ -128,28 +112,78 @@ async def handle_save_history(message: types.Message, bot: Bot):
         return
 
     document = message.document
-    status = await message.reply("Посмотрим, что там...")
-    
+    if not document:
+        await message.reply('Для импорта необходимо прикрепить json файл с историей данного диалога')
+        return
+
+    tmp_message = await bot.send_message(
+        message.chat.id,
+        text='Начинаю импорт диалога...'
+    )
+
     try:
         file_io = io.BytesIO()
         await message.bot.download(file=document.file_id, destination=file_io)
         file_io.seek(0)
         byte_data = file_io.read()
-        json_data = json.loads(byte_data)
+        json_data = json.loads(byte_data.decode("utf-8"))
+
         messages = convert_messages(json_data)
 
-        await status.edit_text(f"Нашёл {len(messages)} сообщений. Запоминаю...")
+        await tmp_message.edit_text(f"Нашёл {len(messages)} сообщений. Запоминаю...")
 
         async with AsyncSessionLocal() as db:
             chat_service = ChatService(db)
             await chat_service.save_history(messages)
-            await db.commit()
-    except:
-        await status.edit_text("Что-то пошло не так, сорян(")
-        raise
+
+        await tmp_message.edit_text("Импорт завершен, теперь я знаю историю диалога и помогу разобраться в деталях!")
+    except Exception as e:
+        print(e)
+        await tmp_message.edit_text("К сожалению import завершился с ошибкой")
+
+@dp.message(
+    Command(commands=['summ_1h', 'summ_3h', 'summ_today', 'summ_yesterday', 'summ_week']),
+    F.chat.type == 'supergroup'
+)
+async def handle_summ_commands(message: types.Message, bot: Bot):
+    from datetime import datetime, timedelta
+    now = datetime.utcnow()
+    command = message.text.split('@')[0]
+
+    # Определяем период
+    if command == '/summ_1h':
+        date_from = now - timedelta(hours=1)
+        date_to = now
+    elif command == '/summ_3h':
+        date_from = now - timedelta(hours=3)
+        date_to = now
+    elif command == '/summ_today':
+        date_from = datetime(now.year, now.month, now.day)
+        date_to = date_from + timedelta(days=1)
+    elif command == '/summ_yesterday':
+        date_from = datetime(now.year, now.month, now.day) - timedelta(days=1)
+        date_to = date_from + timedelta(days=1)
+    elif command == '/summ_week':
+        start_of_week = now - timedelta(days=now.weekday())  # Пн этого месяца
+        date_from = datetime(start_of_week.year, start_of_week.month, start_of_week.day)
+        date_to = date_from + timedelta(days=7)
+    else:
+        await message.reply("Неизвестная команда")
         return
 
-    await status.edit_text("Загрузка завершена! Теперь я всё знаю о вас...")
+    tmp_message = await bot.send_message(
+        chat_id=message.chat.id,
+        text='🫡Подготовливаю суммаризацию...'
+    )
+
+    await bot.send_chat_action(message.chat.id, 'typing')
+
+    reply_text = await summarize_messages(chat_id=message.chat.id, bot_id=bot.id, date_from=date_from, date_to=date_to)
+    await bot.edit_message_text(
+        chat_id=message.chat.id,
+        message_id=tmp_message.message_id,
+        text=reply_text, parse_mode='MarkdownV2'
+    )
 
 
 # After all handlers because it should be the lowest priority handler

@@ -1,8 +1,9 @@
 from typing import List, Optional
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert as pgInsert
 
 from src.database.models.chat import Chat
 from src.database.models.message import Message
@@ -97,10 +98,31 @@ class ChatService:
         self.db.add(chat_message)
         await self.db.commit()
     
-    async def save_history(
-            self,
-            messages: list[Message]
-    ) -> None:
-        for message in messages:
-            self.db.add(message)
+    async def save_history(self, messages: list[Message]) -> None:
+        if not messages:
+            return
+
+        values = [
+            {
+                "id": m.id,
+                "chat_id": m.chat_id,
+                
+                "from_id": m.from_id,
+                "text": m.text,
+                "created_at": m.created_at,
+                "link_in_chat": m.link_in_chat,
+                "from_name": m.from_name,
+            }
+            for m in messages
+        ]
+
+        stmt = (
+            pgInsert(Message)
+            .values(values)
+            .on_conflict_do_nothing(
+                index_elements=["id", "chat_id"]
+            )
+        )
+
+        await self.db.execute(stmt)
         await self.db.commit()
