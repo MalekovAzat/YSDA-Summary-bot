@@ -16,7 +16,7 @@ from src.tools import tools
 from src.bot_utils import summarize_messages
 
 
-@dp.message(Command(commands=['start']), F.chat.type == "private")
+@dp.message(Command(commands=['start', 'help']), F.chat.type == "private")
 async def start_command_handler(message: types.Message):
     [telegram_chat_id, first_name, last_name, username, language_code ] = [message.chat.id, message.from_user.first_name, message.from_user.last_name, message.from_user.username, message.from_user.language_code]
 
@@ -24,7 +24,7 @@ async def start_command_handler(message: types.Message):
 
     await user_service.get_or_create(telegram_chat_id, first_name, last_name, username, language_code)
 
-    await message.answer('<b>Привет я бот который поможет тебе быть всегда в контексте и не терять важные апдейты!</b>\n\nПерешли мне сообщение из чата', parse_mode='HTML')
+    await message.answer('<b>Привет!\nЯ собираю важные сообщения из чатов курсов и делаю по ним краткие сводки.</b>\nЧтобы начать, отправь ID чата курса (начинается с <code>-100</code>)\nПосле этого используй /summ для получения сводки.', parse_mode='HTML')
 
 def is_group_forward_message(text: str):
     """
@@ -54,8 +54,8 @@ async def handle_message(message: types.Message, bot: Bot):
         user_id = message.from_user.id
         result = await bot.get_chat_member(chat_id, user_id)
 
-        if result.status not in ['member', 'administrator', 'creator']:
-            await bot.send_message(user_id, "Вы не являетесь членом этого чата, суммаризация недоступна")
+        if result.status not in ['member', 'administrator']:
+            await bot.send_message(user_id, "Похоже, ты не состоишь в этом чате. Суммаризация недоступна.")
             return
 
         chat_info = await bot.get_chat(chat_id)
@@ -75,7 +75,13 @@ async def handle_message(message: types.Message, bot: Bot):
         # в личных сообщениях идентификатор чата и пользователя совпадают
         await bot.send_message(
             chat_id=user_id,
-            text='Чат добавлен в список чатов, теперь по нему можем получать суммаризацию /summ'
+            text='Чат добавлен в список!\nНапиши /summ, чтобы получить суммаризацию.'
+        )
+    else:
+        await bot.send_message(
+            chat_id=message.from_user.id,
+            text='Похоже, это не ID чата.\nID чата начинается с <code>-100</code>.',
+            parse_mode='HTML'
         )
 
 @dp.message(Command(commands=['summ']), F.chat.type == 'private')
@@ -90,7 +96,7 @@ async def handle_summ_command(message: types.Message, bot: Bot):
     chats = await chat_service.get_by_user_id(user.id)
 
     if len(chats) == 0:
-        await message.reply('У вас нет чатов по которым можно провести summary')
+        await message.reply('Пока нет добавленных чатов.\nЧтобы добавить чат, пришли его ID.')
         return
 
     buttons = [InlineKeyboardButton(text=f'{chat_record.title}',callback_data=f'select_chat:${chat_record.chat_id}') for chat_record in chats]
@@ -99,7 +105,7 @@ async def handle_summ_command(message: types.Message, bot: Bot):
 
     await bot.send_message(
         chat_id= user.telegram_id,
-        text='Выберите чат по которому вы хотите получить суммаризацию:',
+        text='Выбери чат для сводки:',
         reply_markup=kb
     )
 
@@ -115,7 +121,7 @@ async def show_chat_list(query: types.CallbackQuery, bot: Bot):
         await bot.edit_message_text(
             chat_id=query.message.chat.id,
             message_id=query.message.message_id,
-            text="У вас нет чатов по которым можно провести summary"
+            text="Пока нет добавленных чатов.\nЧтобы добавить чат, пришли его ID."
         )
         await query.answer()
         return
@@ -133,7 +139,7 @@ async def show_chat_list(query: types.CallbackQuery, bot: Bot):
     await bot.edit_message_text(
         chat_id=query.message.chat.id,
         message_id=query.message.message_id,
-        text="Выберите чат по которому вы хотите получить суммаризацию:",
+        text="Выбери чат для сводки:",
         reply_markup=kb
     )
 
@@ -180,7 +186,7 @@ async def handle_chat_selected(query: types.CallbackQuery, bot: Bot):
     kb = tools.build_inline_keyboard(buttons, 2)
 
     await bot.edit_message_text(
-        text=f"Выбран чат <b>{chat.title}</b>\n\n Выберите доступные опции:", 
+        text=f"Выбран чат <b>{chat.title}</b>\n\nВыбери доступные опции:", 
         chat_id=query.message.chat.id,
         message_id=query.message.message_id,
         reply_markup=kb,
