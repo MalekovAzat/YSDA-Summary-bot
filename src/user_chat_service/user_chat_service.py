@@ -49,7 +49,7 @@ class UserChatService:
             await session.refresh(user_chat)
             return user_chat
 
-    async def get_or_create(self, user_id: int, chat_id: int, role: str = None):
+    async def get_or_create(self, user_id: int, chat_id: int, role: str = None, title = None):
         """Получить существующую запись или создать новую"""
         async with AsyncSessionLocal() as session:
             result = await session.execute(
@@ -66,6 +66,7 @@ class UserChatService:
                 user_id=user_id,
                 chat_id=chat_id,
                 role=role,
+                title=title,
                 created_at=datetime.utcnow()
             )
             session.add(user_chat)
