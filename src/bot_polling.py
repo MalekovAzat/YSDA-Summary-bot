@@ -27,7 +27,7 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="start", description="🚀 Получить список команд"),
         BotCommand(command="import", description="📥 Импортирование сообщений чата"),
         BotCommand(command="chat_id", description="🆔 Получить идентификатор чата"),
-        BotCommand(command="summ", description="📅 За конкретный день /summ 25-15-10"),
+        BotCommand(command="summ", description="📅 За конкретный день /summ dd.mm.yy"),
         BotCommand(command="summ_1h", description="⏱ За последний час"),
         BotCommand(command="summ_3h", description="🕒 За последние 3 часа"),
         BotCommand(command="summ_today", description="🌞 За сегодня"),
