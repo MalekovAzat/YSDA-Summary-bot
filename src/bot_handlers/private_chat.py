@@ -54,7 +54,7 @@ async def handle_message(message: types.Message, bot: Bot):
         user_id = message.from_user.id
         result = await bot.get_chat_member(chat_id, user_id)
 
-        if result.status not in ['member', 'administrator']:
+        if result.status not in ['member', 'administrator', 'creator']:
             await bot.send_message(user_id, "Похоже, ты не состоишь в этом чате. Суммаризация недоступна.")
             return
 
@@ -96,7 +96,7 @@ async def handle_summ_command(message: types.Message, bot: Bot):
     chats = await chat_service.get_by_user_id(user.id)
 
     if len(chats) == 0:
-        await message.reply('Пока нет добавленных чатов.\nЧтобы добавить чат, пришли его ID.')
+        await message.reply(f'Пока нет добавленных чатов.\n\n <b>Как привязать чат:</b>\n1. Добавь бота в чат\n2. Сделай бота администратором\n3. Вызови /chat_id в группе, в ответ бот пришлет сообщение для привязки\n4. Перешли сообщение от бота в лс боту\n5. Готово, чат привязан!💋💋💋', parse_mode='HTML')
         return
 
     buttons = [InlineKeyboardButton(text=f'{chat_record.title}',callback_data=f'select_chat:${chat_record.chat_id}') for chat_record in chats]
@@ -121,7 +121,8 @@ async def show_chat_list(query: types.CallbackQuery, bot: Bot):
         await bot.edit_message_text(
             chat_id=query.message.chat.id,
             message_id=query.message.message_id,
-            text="Пока нет добавленных чатов.\nЧтобы добавить чат, пришли его ID."
+            text=f'Пока нет добавленных чатов.\n\n <b>Как привязать чат:</b>\n1. Добавь бота в чат\n2. Сделай бота администратором\n3. Вызови /chat_id в группе, в ответ бот пришлет сообщение для привязки\n4. Перешли сообщение от бота в лс боту\n5. Готово, чат привязан!💋💋💋',
+            parse_mode='HTML'
         )
         await query.answer()
         return
@@ -139,7 +140,7 @@ async def show_chat_list(query: types.CallbackQuery, bot: Bot):
     await bot.edit_message_text(
         chat_id=query.message.chat.id,
         message_id=query.message.message_id,
-        text="Выбери чат для сводки:",
+        text='Выбери чат для сводки:',
         reply_markup=kb
     )
 
@@ -186,7 +187,7 @@ async def handle_chat_selected(query: types.CallbackQuery, bot: Bot):
     kb = tools.build_inline_keyboard(buttons, 2)
 
     await bot.edit_message_text(
-        text=f"Выбран чат <b>{chat.title}</b>\n\nВыбери доступные опции:", 
+         text=f"Выбран чат <b>{chat.title}</b>\n\nВыбери доступные опции:",
         chat_id=query.message.chat.id,
         message_id=query.message.message_id,
         reply_markup=kb,
