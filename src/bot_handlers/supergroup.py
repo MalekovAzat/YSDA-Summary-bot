@@ -95,8 +95,17 @@ async def handle_summ_command(message: types.Message, bot: Bot):
 
 
 @dp.message(Command(commands=['chat_id']), F.chat.type == "supergroup")
-async def handle_chat_id_command(message: types.Message):
-    await message.reply(str(message.chat.id))
+async def handle_chat_id_command(message: types.Message, bot: Bot):
+    tmp_message = await bot.send_message(\
+        chat_id=message.chat.id, 
+        text=f'{message.chat.id}:{message.message_id}'
+    )
+
+    await bot.edit_message_text(
+        chat_id=message.chat.id,
+        message_id=tmp_message.message_id,
+        text=f'{message.chat.id}:{message.message_id}:{tmp_message.message_id}'
+    )
 
 
 @dp.message(Command(commands=['import']), F.chat.type == "supergroup")

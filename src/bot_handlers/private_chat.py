@@ -19,10 +19,14 @@ async def start_command_handler(message: types.Message):
 
     await user_service.get_or_create(telegram_chat_id, first_name, last_name, username, language_code)
 
-    await message.answer('<B>Привет я бот который поможет тебе быть всегда в контексте и не терять важные апдейты!</b>\n\nПерешли мне сообщение из чата', parse_mode='HTML')
+    await message.answer('<b>Привет я бот который поможет тебе быть всегда в контексте и не терять важные апдейты!</b>\n\nПерешли мне сообщение из чата', parse_mode='HTML')
 
-def is_supergroup_id(chat_id: str):
-    return bool(re.match(r"^-100\d{9,}$", chat_id))
+def is_group_forward_message(text: str):
+    """
+    Проверяет, что текст имеет формат chat_id:message_id:message_id для супергруппы.
+    Возвращает True, если текст похож на идентификатор супергруппы с message_id.
+    """
+    return bool(re.match(r"^-100\d+:\d+:\d+$", text))
 
 @dp.message(F.chat.type == "private", ~F.text.startswith("/"))
 async def handle_message(message: types.Message, bot: Bot):
@@ -31,12 +35,21 @@ async def handle_message(message: types.Message, bot: Bot):
     user_service = UserService()
     user = await user_service.get_by_telegram_id(telegram_id=message.from_user.id)
 
-    if is_supergroup_id(text):
-        chat_id = int(text)
+    if is_group_forward_message(text):
+        [chat_id, tmp_message_id, second_tmp_message_id] = text.split(':')
+
+        chat_id = int(chat_id)
+        tmp_message_id = int(tmp_message_id)
+        second_tmp_message_id = int(second_tmp_message_id)
+
+        await bot.delete_message(chat_id=chat_id, message_id=tmp_message_id)
+        await bot.delete_message(chat_id=chat_id, message_id=second_tmp_message_id)
+
+
         user_id = message.from_user.id
         result = await bot.get_chat_member(chat_id, user_id)
 
-        if result.status not in ['member', 'administrator']:
+        if result.status not in ['member', 'administrator', 'creator']:
             await bot.send_message(user_id, "Вы не являетесь членом этого чата, суммаризация недоступна")
             return
 
@@ -57,7 +70,7 @@ async def handle_message(message: types.Message, bot: Bot):
         # в личных сообщениях идентификатор чата и пользователя совпадают
         await bot.send_message(
             chat_id=user_id,
-            text='Чат добавлен в список чатов, теперь можем получать суммаризацию /summ'
+            text='Чат добавлен в список чатов, теперь по нему можем получать суммаризацию /summ'
         )
 
 @dp.message(Command(commands=['summ']), F.chat.type == 'private')
