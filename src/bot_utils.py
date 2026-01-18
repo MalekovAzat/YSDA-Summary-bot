@@ -74,7 +74,7 @@ async def summarize_messages(chat_id: int, bot_id: int, date_from: datetime, dat
         )
 
         if not messages:
-            return f"Сообщений за этот период нет ({date_from} - {date_to})"
+            return f"Сообщений за этот период нет"
 
         messages_text = [
             f"{msg.created_at.strftime('%d.%m.%Y %H:%M')} {msg.from_name} {msg.link_in_chat}: {msg.text}"
